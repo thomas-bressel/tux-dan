@@ -47,6 +47,7 @@ sel             equ #8000
 top             equ #8001
 count           equ #8002
 idx             equ #8003
+old             equ #8004
 
 ; A command to the cartridge: three &FD prefixes, the last being the
 ; instruction's own.
@@ -277,6 +278,12 @@ input:
         bit 2,a
         jr nz,play_selected
         ld hl,sel
+        ld b,a
+        ld a,(hl)
+        ld (old),a              ; the selection and the top before the move
+        ld a,(top)
+        ld (old + 1),a
+        ld a,b
         bit 0,a
         jr z,go_down
         ld a,(hl)
@@ -305,7 +312,19 @@ moved_below:
         sub VISIBLE - 1
         ld (top),a
 moved_shown:
+        ; The list again if it has scrolled; else its two lines that change.
+        ld a,(old + 1)
+        ld hl,top
+        cp (hl)
+        jr z,moved_lines
         call draw_list
+        jr moved_drawn
+moved_lines:
+        ld a,(old)
+        call draw_index
+        ld a,(sel)
+        call draw_index
+moved_drawn:
         ld b,8                  ; a key held repeats after 8 frames
 repeat_wait:
         call vsync
@@ -346,6 +365,25 @@ rom_start_end:
 draw_list:
         ld d,2
 draw_line:
+        call draw_row
+        inc d
+        ld a,d
+        cp 2 + VISIBLE
+        jr c,draw_line
+        ret
+
+; The line of game A, if it is on the screen.
+draw_index:
+        ld hl,top
+        sub (hl)
+        ret c
+        cp VISIBLE
+        ret nc
+        add a,2
+        ld d,a
+
+; Row D of the list (2 and on), blanked and written again. D kept.
+draw_row:
         push de
         call clear_row
         pop de
@@ -355,7 +393,7 @@ draw_line:
         ld (idx),a
         ld hl,count
         cp (hl)
-        jr nc,draw_next
+        ret nc
         call entry_address
         ld c,1
         ld a,(idx)
@@ -369,13 +407,7 @@ draw_line:
         call put_char
 draw_name:
         ld e,3
-        call print_text
-draw_next:
-        inc d
-        ld a,d
-        cp 2 + VISIBLE
-        jr c,draw_line
-        ret
+        jp print_text
 
 ; HL = the directory's entry for game A.
 entry_address:

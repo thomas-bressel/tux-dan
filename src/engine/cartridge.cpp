@@ -14,6 +14,7 @@ constexpr char kMagic[] = "TXDN";
 constexpr uint8_t kVersion = 1;
 constexpr uint8_t kLowDone = 0xFE;  // a table's entry: quarter 0 next
 constexpr uint8_t kLast = 0xFF;     // and its end
+static_assert(Cartridge::kMaxGames == 31, "the message below says 31");
 
 bool fail(std::string* error, const std::string& message)
 {
@@ -119,7 +120,7 @@ std::vector<uint8_t> buildCartridge(const Cartridge& cartridge, std::string* err
 {
     const auto games = cartridge.games;
     if (games.size() > static_cast<size_t>(Cartridge::kMaxGames)) {
-        fail(error, "a cartridge has room in its menu for " + std::to_string(Cartridge::kMaxGames) + " games");
+        fail(error, "a cartridge has room in its menu for 31 games");
         return {};
     }
     std::vector<uint8_t> image(Cartridge::kSize, 0xFF);
@@ -146,7 +147,7 @@ std::vector<uint8_t> buildCartridge(const Cartridge& cartridge, std::string* err
         std::memcpy(entry, name.data(), name.size());
         if (game.kind == Game::Kind::Rom) {
             if (game.rom.empty() || game.rom.size() > Cartridge::kSlotSize) {
-                fail(error, "\"" + game.name + "\" is not a ROM of 16K");
+                fail(error, "a ROM is not of 16K");
                 return {};
             }
             if (static_cast<size_t>(romSlot) * Cartridge::kSlotSize < data) {
@@ -161,7 +162,7 @@ std::vector<uint8_t> buildCartridge(const Cartridge& cartridge, std::string* err
         }
         const Snapshot& s = game.snapshot;
         if (s.ram.size() != Snapshot::kBank && s.ram.size() != 2 * Snapshot::kBank) {
-            fail(error, "\"" + game.name + "\" has neither 64K nor 128K of memory");
+            fail(error, "a snapshot has neither 64K nor 128K of memory");
             return {};
         }
         entry[z80::ENTRY_TYPE] = 0;
@@ -257,7 +258,7 @@ std::optional<Cartridge> readCartridge(std::span<const uint8_t> image, std::stri
                 const size_t from = whole[e + 2] * Cartridge::kSlotSize + (whole[e + 3] | whole[e + 4] << 8);
                 const auto block = from < whole.size() ? unpack(std::span(whole).subspan(from)) : std::nullopt;
                 if (!block || block->size() != kBlockSize) {
-                    fail(error, "the memory of \"" + game.name + "\" is damaged");
+                    fail(error, "the memory of a game is damaged");
                     return std::nullopt;
                 }
                 // The second bank's blocks are seen at &4000; quarter 0 has

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace tuxdma {
+namespace tuxdan {
 
 namespace {
 
@@ -56,4 +56,4 @@ QColor readable(const QColor& wanted, const QColor& against, double ratio)
     return moved(wanted, way * high);
 }
 
-}  // namespace tuxdma
+}  // namespace tuxdan

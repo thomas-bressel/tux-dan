@@ -21,6 +21,7 @@
 #include "cartridge.h"
 #include "core/cpc.h"
 #include "core/files.h"
+#include "core/keyboard.h"
 #include "core/setup.h"
 #include "snapshot.h"
 
@@ -69,6 +70,15 @@ int main(int argc, char** argv)
     for (int a = 2; a < argc; ++a) {
         const auto file = readFile(argv[a]);
         std::string error;
+        if (file && std::string(argv[a]).ends_with(".rom")) {
+            tuxdan::Game rom;
+            rom.name = "A ROM";
+            rom.kind = tuxdan::Game::Kind::Rom;
+            rom.rom = *file;
+            rom.rom.resize(0x4000, 0xFF);
+            cartridge.games.push_back(rom);
+            continue;
+        }
         const auto snapshot = file ? tuxdan::readSnapshot(*file, &error) : std::nullopt;
         if (!snapshot) {
             std::printf("%s: %s\n", argv[a], error.c_str());
@@ -102,6 +112,27 @@ int main(int argc, char** argv)
         for (int f = 0; f < 50; ++f)
             cpc.runFrame();
         picture(cpc, out + "/menu.ppm");
+        // Down twice, then Space: the third game is played.
+        if (cartridge.games.size() >= 3) {
+            for (int press = 0; press < 2; ++press) {
+                cpc.keyboard().set(CpcKey::CursorDown, true);
+                for (int f = 0; f < 3; ++f)
+                    cpc.runFrame();
+                cpc.keyboard().set(CpcKey::CursorDown, false);
+                for (int f = 0; f < 12; ++f)
+                    cpc.runFrame();
+            }
+            picture(cpc, out + "/menu-third.ppm");
+            cpc.keyboard().set(CpcKey::Space, true);
+            long steps = 0;
+            while (!cpc.dandanator()->state().commandsOff && steps < 20'000'000) {
+                cpc.stepInstruction();
+                ++steps;
+            }
+            cpc.keyboard().set(CpcKey::Space, false);
+            std::printf("menu: down twice and Space plays %s\n",
+                        cpc.cpu().pc == cartridge.games[2].snapshot.pc() ? "the third game" : "something else");
+        }
     }
 
     int failures = 0;
@@ -110,6 +141,16 @@ int main(int argc, char** argv)
         tuxdan::Cartridge one = cartridge;
         one.autoboot = static_cast<int>(g);
         writeFile(des, tuxdan::buildCartridge(one));
+        if (cartridge.games[g].kind == tuxdan::Game::Kind::Rom) {
+            Cpc cpc;
+            if (!start(cpc, des, 2))
+                return 1;
+            for (int f = 0; f < 250; ++f)
+                cpc.runFrame();
+            picture(cpc, out + "/game" + std::to_string(g) + ".ppm");
+            std::printf("%-50.50s pictured\n", cartridge.games[g].name.c_str());
+            continue;
+        }
         Cpc cpc;
         if (!start(cpc, des, s.machine()))
             return 1;
